@@ -3,6 +3,7 @@ import Head from 'next/head'
 import axios from 'axios'
 import Link from 'next/link'
 
+// Example code from - https://scotch.io/tutorials/react-universal-with-next-js-server-side-react#demo-barclays-premier-league-table
 export default class extends React.Component {
   static async getInitialProps () {
     const res = await axios.get('http://api.football-data.org/v1/competitions/426/leagueTable');

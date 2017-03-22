@@ -14,14 +14,79 @@ import * as https from 'https'
 
 const muiTheme = getMuiTheme({ userAgent: false });
 
+let serviceTicket = '';
+
 const style = {
   marginLeft: 20,
 };
 
+function getAllUrlParams(url) {
+
+  // get query string from url (optional) or window
+  var queryString = url ? url.split('?')[1] : window.location.search.slice(1);
+
+  // we'll store the parameters here
+  var obj = {};
+
+  // if query string exists
+  if (queryString) {
+
+    // stuff after # is not part of query string, so get rid of it
+    queryString = queryString.split('#')[0];
+
+    // split our query string into its component parts
+    var arr = queryString.split('&');
+
+    for (var i=0; i<arr.length; i++) {
+      // separate the keys and the values
+      var a = arr[i].split('=');
+
+      // in case params look like: list[]=thing1&list[]=thing2
+      var paramNum = undefined;
+      var paramName = a[0].replace(/\[\d*\]/, function(v) {
+        paramNum = v.slice(1,-1);
+        return '';
+      });
+
+      // set parameter value (use 'true' if empty)
+      var paramValue = typeof(a[1])==='undefined' ? true : a[1];
+
+      // (optional) keep case consistent
+      paramName = paramName.toLowerCase();
+      paramValue = paramValue.toLowerCase();
+
+      // if parameter name already exists
+      if (obj[paramName]) {
+        // convert value to array (if still string)
+        if (typeof obj[paramName] === 'string') {
+          obj[paramName] = [obj[paramName]];
+        }
+        // if no array index number specified...
+        if (typeof paramNum === 'undefined') {
+          // put the value on the end of the array
+          obj[paramName].push(paramValue);
+        }
+        // if array index number specified...
+        else {
+          // put the value at that index number
+          obj[paramName][paramNum] = paramValue;
+        }
+      }
+      // if param name doesn't exist yet, set it
+      else {
+        obj[paramName] = paramValue;
+      }
+    }
+  }
+
+  return obj;
+}
+
 export default class extends React.Component {
   static async getInitialProps ({ req }) {
-    //console.log('req: ' + JSON.stringify(req.headers));
-    console.log('getInitialProps');
+    console.log('getInitialProps, req: ' + JSON.stringify(req.url) + ', serviceTicket: ' + serviceTicket);
+    console.log('ip: ' + getAllUrlParams(req.url).ip);
+    console.log('mac: ' + getAllUrlParams(req.url).mac);
 
     var headers = {
       userAgent: req.headers['user-agent'],
@@ -29,28 +94,34 @@ export default class extends React.Component {
       forwardedFor: req.headers['x-forwarded-for'],
       realIP: req.headers['x-real-ip'],
     };
-    const controller = {
-      hostname: 'https://192.168.193.51',
-      port: '443',
-      apivers: 'v1',
-      user: 'api',
-      password: 'C1sc0123'
-    };
-    var buildURL = controller.hostname + '/api/' + controller.apivers + '/ticket';
-    const axiosInstance = axios.create({
-      httpsAgent: new https.Agent({
-        rejectUnauthorized: false
-      })
-    });
-    var currentTime = new Date();
-    console.log('Login URL: ' + buildURL);
-    const response = await axiosInstance.post(buildURL, {
-      username: controller.user,
-      password: controller.password
-    });
-    console.log('back from await ' + JSON.stringify(response.data.response));
 
-    return { response: response.data.response, headers: headers }
+    if (!serviceTicket) {
+      const controller = {
+        hostname: 'https://192.168.193.51',
+        port: '443',
+        apivers: 'v1',
+        user: 'api',
+        password: 'C1sc0123'
+      };
+      var buildURL = controller.hostname + '/api/' + controller.apivers + '/ticket';
+      const axiosInstance = axios.create({
+        httpsAgent: new https.Agent({
+          rejectUnauthorized: false
+        })
+      });
+      var currentTime = new Date();
+      console.log('Login URL: ' + buildURL);
+      const response = await axiosInstance.post(buildURL, {
+        username: controller.user,
+        password: controller.password
+      });
+      console.log('back from await ' + JSON.stringify(response.data.response));
+      serviceTicket = response.data.response.serviceTicket;
+    } else {
+      console.log('We already have a ticket: ' + serviceTicket);
+    }
+
+    return { serviceTicket: serviceTicket, headers: headers }
 /*
     axiosInstance.post(buildURL, {
       username: controller.user,
@@ -93,6 +164,19 @@ export default class extends React.Component {
     //return headers;
   };
 
+  constructor(props) {
+    super(props);
+    this.state = {
+      controller: {
+        hostname: 'https://192.168.193.51',
+        port: '443',
+        apivers: 'v1',
+        user: 'api',
+        password: 'C1sc0123'
+      }
+    };
+  }
+
   componentDidMount() {
     injectTapEventPlugin();
     console.log('componentDidMount, props: ' + JSON.stringify(this.props) + ', session(dev): ' + sessionStorage.getItem('dev'));
@@ -121,13 +205,15 @@ export default class extends React.Component {
             <Divider />
             <TextField floatingLabelText="User Agent" disabled style={style} underlineShow={false} fullWidth={true} value={this.props.headers.userAgent}/>
             <Divider />
+            <TextField floatingLabelText="APIC Controller" disabled style={style} underlineShow={false} fullWidth={true}  value={this.state.controller.hostname}/>
+            <Divider />
             <TextField floatingLabelText="Forwarded For" disabled style={style} underlineShow={false} fullWidth={true}  value={this.props.headers.forwardedFor}/>
 {/*
             <Divider />
             <TextField floatingLabelText="Real IP" disabled style={style} underlineShow={false} fullWidth={true}  value={this.prop.headers.realIP}/>
 */}
             <Divider />
-            <TextField floatingLabelText="Ticket" disabled style={style} underlineShow={false} fullWidth={true}  value={this.props.response.serviceTicket}/>
+            <TextField floatingLabelText="Ticket" disabled style={style} underlineShow={false} fullWidth={true}  value={this.props.serviceTicket}/>
 {/*
             <ApicTicket />
 */}
