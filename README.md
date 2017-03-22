@@ -5,8 +5,7 @@ This is a Javascript [next.js](https://github.com/zeit/next.js/) project which g
 ## Steps to Run Project
 
 - Install [Node](https://nodejs.org/en/download/)
-- Install next.js `npm install next react react-dom --save`
 - Git clone this project `git clone https://github.com/rgstephens/devinfo`
-- `cd definfo`
+- `cd devinfo`
 - `npm install`
 - `npm run dev`

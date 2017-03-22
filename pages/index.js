@@ -8,7 +8,7 @@ import TextField from 'material-ui/TextField'
 import Paper from 'material-ui/Paper'
 import {Card, CardActions, CardHeader, CardMedia, CardTitle, CardText} from 'material-ui/Card'
 import injectTapEventPlugin from 'react-tap-event-plugin'
-import { ApicTicket } from '../components/apic'
+import Hostinfo from '../components/hostInfo'
 import axios from 'axios'
 import * as https from 'https'
 
@@ -19,6 +19,14 @@ let serviceTicket = '';
 const style = {
   marginLeft: 20,
 };
+
+function censor(key, value) {
+  console.log('value: ' + value);
+  if (typeof(value) == "string") {
+    return undefined;
+  }
+  return value;
+}
 
 function getAllUrlParams(url) {
 
@@ -85,8 +93,8 @@ function getAllUrlParams(url) {
 export default class extends React.Component {
   static async getInitialProps ({ req }) {
     console.log('getInitialProps, req: ' + JSON.stringify(req.url) + ', serviceTicket: ' + serviceTicket);
-    console.log('ip: ' + getAllUrlParams(req.url).ip);
-    console.log('mac: ' + getAllUrlParams(req.url).mac);
+    console.log('ip: ' + getAllUrlParams(req.url).hostIp);
+    console.log('mac: ' + getAllUrlParams(req.url).hostMac);
 
     var headers = {
       userAgent: req.headers['user-agent'],
@@ -95,20 +103,25 @@ export default class extends React.Component {
       realIP: req.headers['x-real-ip'],
     };
 
+    let host = {
+      hostIp: getAllUrlParams(req.url).ip ? getAllUrlParams(req.url).ip : headers.remoteAddr,
+      hostMac: getAllUrlParams(req.url).mac
+    };
+    const controller = {
+      hostname: 'https://192.168.193.51',
+      port: '443',
+      apivers: 'v1',
+      user: 'api',
+      password: 'C1sc0123'
+    };
+
+    const axiosInstance = axios.create({
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false
+      })
+    });
     if (!serviceTicket) {
-      const controller = {
-        hostname: 'https://192.168.193.51',
-        port: '443',
-        apivers: 'v1',
-        user: 'api',
-        password: 'C1sc0123'
-      };
-      var buildURL = controller.hostname + '/api/' + controller.apivers + '/ticket';
-      const axiosInstance = axios.create({
-        httpsAgent: new https.Agent({
-          rejectUnauthorized: false
-        })
-      });
+      const buildURL = controller.hostname + '/api/' + controller.apivers + '/ticket';
       var currentTime = new Date();
       console.log('Login URL: ' + buildURL);
       const response = await axiosInstance.post(buildURL, {
@@ -121,47 +134,13 @@ export default class extends React.Component {
       console.log('We already have a ticket: ' + serviceTicket);
     }
 
-    return { serviceTicket: serviceTicket, headers: headers }
-/*
-    axiosInstance.post(buildURL, {
-      username: controller.user,
-      password: controller.password
-    })
-      .then(function (response) {
-        console.log('response.status: ' + response.status);
-        if (response.status === 200) {
-          //const content = JSON.parse(response.content);
-          console.log('login status code 200, result.content: ' + JSON.stringify(response.data.response));
-          return { data: response.data.response, headers: headers };
-        } else {
-          console.log('login non 200 status return from login: ' + JSON.stringify(response.status) + ', ' + JSON.stringify(response.data.response));
-        }
-      })
-      .catch(function (error) {
-        console.log(error);
-      });
+    // Get host info
+    console.log('host info for: ' + host.hostIp);
+    const buildURL = controller.hostname + '/api/' + controller.apivers + '/host/?hostIp=' + host.hostIp;
+    const r = await axiosInstance.get(buildURL, { headers: {'x-auth-token': serviceTicket} });
+    console.log('status: ' + JSON.stringify(r.status) + ', num hosts: ' + r.data.response.length + ', data: ' + JSON.stringify(r.data));
 
-    if(!process.browser) {
-      // running on the server here
-      console.log('server side');
-      //var buildURL = controller.hostname + ':' + controller.port + '/api/' + controller.apivers + '/ticket';
-    } else {
-      // running on the client, get the cache
-      console.log('client, dev: ' + sessionStorage.getItem('dev'));
-      //const dev = JSON.parse(sessionStorage.getItem('dev'));
-      const dev = sessionStorage.getItem('dev');
-      if (dev !== 'undefined' && dev !== null) {
-        console.log('have dev data already');
-        const devInfo = JSON.parse(dev);
-        return { dev: devInfo, headers: headers };
-      } else {
-        console.log('no dev data, fake data');
-        return { dev: {"serviceTicket":"fake-data","idleTimeout":1,"sessionTimeout":2}, headers: headers };
-      }
-    }
-*/
-
-    //return headers;
+    return { serviceTicket: serviceTicket, headers: headers, host: host, hostInfo: r.data.response[0] };
   };
 
   constructor(props) {
@@ -184,6 +163,8 @@ export default class extends React.Component {
   }
 
   render() {
+    console.log('render, this.props.host: ' + JSON.stringify(this.props.host));
+    console.log('render, this.props.hostInfo: ' + JSON.stringify(this.props.hostInfo));
     console.log('render, this.props.response: ' + JSON.stringify(this.props.response));
     console.log('render, this.props.headers: ' + JSON.stringify(this.props.headers));
     return (
@@ -206,9 +187,9 @@ export default class extends React.Component {
             <TextField floatingLabelText="User Agent" disabled style={style} underlineShow={false} fullWidth={true} value={this.props.headers.userAgent}/>
             <Divider />
             <TextField floatingLabelText="APIC Controller" disabled style={style} underlineShow={false} fullWidth={true}  value={this.state.controller.hostname}/>
+{/*
             <Divider />
             <TextField floatingLabelText="Forwarded For" disabled style={style} underlineShow={false} fullWidth={true}  value={this.props.headers.forwardedFor}/>
-{/*
             <Divider />
             <TextField floatingLabelText="Real IP" disabled style={style} underlineShow={false} fullWidth={true}  value={this.prop.headers.realIP}/>
 */}
@@ -219,7 +200,10 @@ export default class extends React.Component {
 */}
             <Divider />
           </Paper>
+
             </Card>
+            <p></p>
+          <Hostinfo hostInfo={this.props.hostInfo}/>
         </div>
       </MuiThemeProvider>
     )
