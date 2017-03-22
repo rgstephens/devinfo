@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "dev": "next",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "axios": "^0.15.3",
+    "react-tap-event-plugin": "^2.0.1"
+  }
+}
